@@ -69,6 +69,9 @@ def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffl
     predictions = []
     differences = []
     accuracies = []
+    precisions = []
+    recalls = []
+    f1_scores = []
     data_tensor = torch.tensor(np.expand_dims(X,axis=2),dtype=torch.float32)
     labels_tensor = torch.tensor(y,dtype=torch.long)
     for train, test in cv_splitter.split(data_tensor,labels_tensor):
@@ -100,6 +103,9 @@ def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffl
                 targets = targets.cpu().numpy()
                 differences.extend([abs(pred-real) for pred, real in zip(preds,targets)])
                 accuracies.append(accuracy_score(targets,preds))
+                precisions.append(precision_score(targets,preds))
+                recalls.append(recall_score(targets,preds))
+                f1_scores.append(f1_score(targets,preds))
                 predictions.extend([(pred,real,index) for pred, real, index in zip(preds,targets,test[curr_idx:curr_idx+len(targets)])])
                 curr_idx = len(targets)
     predictions = sorted(predictions, key=lambda x: x[2])
@@ -107,12 +113,30 @@ def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffl
     mean_cv_accuracy = np.mean(accuracies)
     best_fold_accuracy = np.max(accuracies)
     worst_fold_accuracy = np.min(accuracies)
+    mean_cv_precision = np.mean(precisions)
+    best_fold_precision = np.max(precisions)
+    worst_fold_precision = np.min(precisions)
+    mean_cv_recall = np.mean(recalls)
+    best_fold_recall = np.max(recalls)
+    worst_fold_recall = np.min(recalls)
+    mean_cv_f1 = np.mean(f1_scores)
+    best_fold_f1 = np.max(f1_scores)
+    worst_fold_f1 = np.min(f1_scores)
     mean_cv_difference = np.mean(differences)
     median_cv_difference = np.median(differences)
     metrics_dict = {
         'mean_accuracy': mean_cv_accuracy,
         'best_accuracy': best_fold_accuracy,
         'worst_accuracy': worst_fold_accuracy,
+        'mean_precision': mean_cv_precision,
+        'best_precision': best_fold_precision,
+        'worst_precision': worst_fold_precision,
+        'mean_recall': mean_cv_recall,
+        'best_recall': best_fold_recall,
+        'worst_recall': worst_fold_recall,
+        'mean_f1': mean_cv_f1,
+        'best_f1': best_fold_f1,
+        'worst_f1': worst_fold_f1,
         'mean_difference': mean_cv_difference,
         'median_difference': median_cv_difference
     }
