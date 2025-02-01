@@ -1,0 +1,6 @@
+torch 
+scikit-learn
+numpy 
+datasets
+mne 
+scipy
