@@ -28,7 +28,7 @@ sfreq = 256
 samples = np.random.rand(num_samples,num_channels,num_timesteps) # numpy array of random floats in shape (10,16,256)
 labels = np.random.randint(0,2,size=(num_samples,)) # numpy array of randomly ordered 0s and 1s in shape (10,)
 
-wrapper = FeatureWrpper()
+wrapper = FeatureWrapper()
 processed_samples = np.array([wrapper.compute_features(sample, sfreq, desired_features=['alpha_bandpower']) for sample in samples])
 
 metrics_dict = classify_sklearn(processed_samples,labels,SVC(),return_preds=False)
