@@ -31,7 +31,7 @@ labels = np.random.randint(0,2,size=(num_samples,)) # numpy array of randomly or
 wrapper = FeatureWrpper()
 processed_samples = np.array([wrapper.compute_features(sample, sfreq, desired_features=['alpha_bandpower']) for sample in samples])
 
-metrics_dict = classify_sklearn(processed_samples,labels_encoded,GradientBoostingClassifier(),return_preds=True)
+metrics_dict = classify_sklearn(processed_samples,labels,SVC(),return_preds=False)
 print(f"Mean CV accuracy: {metrics_dict['mean_accuracy']}")
 print(f"Best CV accuracy: {metrics_dict['best_accuracy']}")
 print(f"Worst CV accuracy: {metrics_dict['worst_accuracy']}")
