@@ -3,4 +3,5 @@ scikit-learn
 numpy 
 datasets
 mne 
+mne-features
 scipy
