@@ -2,6 +2,7 @@
 ## Repo Map
 * classify.py: Main classifier functions with entrypoints for sklearn or pytorch classifier with automated cross-validation evaluation. Expects inputs and labels X, y in shape (num_samples, num_channels, num_features) and (num_samples,). Labels should be encoded with values 0 to n-1 where n is the number of unique classes. Also expects a constructed sklearn or pytorch classifier. Returns dictionary of evaluation results.
 * feature.py: Feature extraction wrapper class for computing desired features. in FeatureWrapper.compute_features(), expects an EEG sample in the shape (num_channels, num_timesteps), the sampling frequency, and desired features specified with a list of keys to the feature function dictionary. Returns 2D numpy array for the given sample in shape (num_channels, num_features).
+* hyperparameter.py: Hyperparameter optimization framework using Bayesian Optimization to find optimal channel and feature subset to maximize crossfold accuracy on EEG training dataset.
 * eegnet.py: Implementation of a lightweight CNN for EEG classification. If not specified in constructor, kernel parameters are calculated depending on input length. This model works as input for the pytorch classifier. Works best on raw signal without feature extractions, so pass inputs to classification function as (num_samples, num_channels, num_timesteps).
 * example_script.ipynb: Example notebook walking through steps for loading an example toy dataset with binary labels for relaxation or concentration, formatting it for the feature extraction and classifier, and getting cross fold evaluation results.
 
@@ -29,7 +30,7 @@ samples = np.random.rand(num_samples,num_channels,num_timesteps) # numpy array o
 labels = np.random.randint(0,2,size=(num_samples,)) # numpy array of randomly ordered 0s and 1s in shape (10,)
 
 wrapper = FeatureWrapper()
-processed_samples = np.array([wrapper.compute_features(sample, sfreq, desired_features=['alpha_bandpower']) for sample in samples])
+processed_samples = np.array([wrapper.compute_features(sample, i, sfreq, [j for j in range(sample.shape[0])], desired_features=['alpha_bandpower']) for i, sample in enumerate(samples)])
 
 metrics_dict = classify_sklearn(processed_samples,labels,SVC(),return_preds=False)
 print(f"Mean CV accuracy: {metrics_dict['mean_accuracy']}")
