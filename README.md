@@ -5,6 +5,7 @@
 * hyperparameter.py: Hyperparameter optimization framework using Bayesian Optimization to find optimal channel and feature subset to maximize crossfold accuracy on EEG training dataset.
 * eegnet.py: Implementation of a lightweight CNN for EEG classification. If not specified in constructor, kernel parameters are calculated depending on input length. This model works as input for the pytorch classifier. Works best on raw signal without feature extractions, so pass inputs to classification function as (num_samples, num_channels, num_timesteps).
 * example_script.ipynb: Example notebook walking through steps for loading an example toy dataset with binary labels for relaxation or concentration, formatting it for the feature extraction and classifier, and getting cross fold evaluation results.
+* extract_erps: Directory storing module for extracting ERPs from filepaths.
 
 ## Getting Started 
 * Create new conda environment: 
@@ -49,5 +50,16 @@ print(f"Mean CV F1: {metrics_dict['mean_f1']}")
 print(f"Best CV F1: {metrics_dict['best_f1']}")
 print(f"Worst CV F1: {metrics_dict['worst_f1']}")
 ```
+
+## Extracting ERPs
+* Use Example:
+```
+from extract_erps import process_data
+eeg_file_paths = [r"data/eeg_fatigue_sample_1.csv", r"data/eeg_baseline_sample_1.csv"]
+metadata_file_path = [r"metadata/eeg_fatigue_sample_1.csv", r"metadata/eeg_baseline_sample_1.csv"]
+output_dir_name = "outputs"
+process_data(eeg_file_paths,metadata_file_paths, output_dir_name=output_dir_name, onset_time = 0, after_time = 1.0, sr = 125)
+```
+
 
 
