@@ -5,10 +5,10 @@ import pytz
 import tqdm
 import os
 
-def find_closest_row(time, eeg_df):
+def find_closest_row(time, eeg_df, last_index):
     last_difference = float('inf')
 
-    for i, row in eeg_df.iterrows():
+    for i, row in eeg_df[last_index:].iterrows():
         unix_timestamp = row[30]
         unix_dt = datetime.utcfromtimestamp(unix_timestamp)
         unix_dt = unix_dt.replace(tzinfo=pytz.UTC)
@@ -28,10 +28,11 @@ def read_file(eeg_file, metadata_file, onset_time = 0, after_time = 1.0, sr = 12
 
     congruent_row_indices = []
     incongruent_row_indices = []
-
+    last_index = 0
     for index, row in metadata_df.iterrows():
         time = start_time + timedelta(seconds=row['trial.started'])
-        row_index = find_closest_row(time, eeg_df)
+        row_index = find_closest_row(time, eeg_df, last_index)
+        last_index = row_index
         if(row_index < (onset_time * sr) or row_index + (after_time * sr) >= len(eeg_df)):
             continue
         if row['congruent'] == 1:
