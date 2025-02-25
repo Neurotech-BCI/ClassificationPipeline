@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 ### Method to classify a dataset with cross validation and compute relevant metrics using an sklearn model ###
-def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuffle=True), return_preds = False):
+def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuffle=True),groups=None, return_preds = False):
     outputs = []
     differences = []
     accuracies = []
@@ -14,14 +14,14 @@ def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuff
     recalls = []
     f1_scores = []
     X_reshaped = np.reshape(X,(X.shape[0],-1))
-    for train, test in cv_splitter.split(X_reshaped,y):
+    for train, test in cv_splitter.split(X_reshaped,y,groups=groups):
         model.fit(X_reshaped[train],y[train])
         y_pred = model.predict(X_reshaped[test])
         differences.extend([abs(pred-real) for pred, real in zip(y_pred,y[test])])
         accuracies.append(accuracy_score(y[test],y_pred))
-        precisions.append(precision_score(y[test],y_pred))
-        recalls.append(recall_score(y[test],y_pred))
-        f1_scores.append(f1_score(y[test],y_pred))
+        precisions.append(precision_score(y[test],y_pred,average='weighted'))
+        recalls.append(recall_score(y[test],y_pred,average='weighted'))
+        f1_scores.append(f1_score(y[test],y_pred,average='weighted'))
         outputs.extend([(pred,real,index) for pred, real, index in zip(y_pred,y[test],test)])
     outputs = sorted(outputs, key=lambda x: x[2])
     outputs = [(pred,real) for pred, real, _ in outputs]
@@ -65,7 +65,7 @@ def reset_weights(model):
             layer.reset_parameters()
 
 ### Method to classify a dataset with cross validation and compute relevant metrics using a pytorch model ###
-def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffle=True), return_preds = False, batch_size = 10, learning_rate = 0.01, num_epochs = 10, criterion = nn.CrossEntropyLoss()):
+def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffle=True), groups=None, return_preds = False, batch_size = 10, learning_rate = 0.01, num_epochs = 10, criterion = nn.CrossEntropyLoss()):
     predictions = []
     differences = []
     accuracies = []
@@ -74,7 +74,7 @@ def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffl
     f1_scores = []
     data_tensor = torch.tensor(np.expand_dims(X,axis=2),dtype=torch.float32)
     labels_tensor = torch.tensor(y,dtype=torch.long)
-    for train, test in cv_splitter.split(data_tensor,labels_tensor):
+    for train, test in cv_splitter.split(data_tensor,labels_tensor,groups=None):
         reset_weights(model)
         train_data, test_data = data_tensor[train], data_tensor[test]
         train_labels, test_labels = labels_tensor[train], labels_tensor[test]
@@ -103,9 +103,9 @@ def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffl
                 targets = targets.cpu().numpy()
                 differences.extend([abs(pred-real) for pred, real in zip(preds,targets)])
                 accuracies.append(accuracy_score(targets,preds))
-                precisions.append(precision_score(targets,preds))
-                recalls.append(recall_score(targets,preds))
-                f1_scores.append(f1_score(targets,preds))
+                precisions.append(precision_score(targets,preds,average='weighted'))
+                recalls.append(recall_score(targets,preds,average='weighted'))
+                f1_scores.append(f1_score(targets,preds,average='weighted'))
                 predictions.extend([(pred,real,index) for pred, real, index in zip(preds,targets,test[curr_idx:curr_idx+len(targets)])])
                 curr_idx = len(targets)
     predictions = sorted(predictions, key=lambda x: x[2])

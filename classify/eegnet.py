@@ -1,45 +1,96 @@
 import torch
 import torch.nn as nn
 
-### CNN for classifying raw EEG samples in shape (Batch size, num_channels, seq_lenth) or (num_channels, seq_length) ###
-class EEGCNN(nn.Module):
-    def __init__(self, num_classes, in_channels, seq_len, kernel_size = None, maxpool_size=None, dropout = 0.5, out_channel_1_dim = 3, out_channel_2_dim = 3):
-        if not kernel_size:
-            kernel_size = round(seq_len/12)
-        super(EEGCNN, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channel_1_dim, kernel_size=1, bias=False),
-            nn.BatchNorm2d(out_channel_1_dim),
-            nn.Tanh(),
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(in_channels=out_channel_1_dim, out_channels=out_channel_2_dim, kernel_size=(1,kernel_size), bias=False),
-            nn.BatchNorm2d(out_channel_2_dim),
-            nn.Tanh(),
-        )
-        curr_size = seq_len-kernel_size+1
-        
-        # By default, select valid maxpool size closest to the value that splits the input into 150 segments.
-        if not maxpool_size:
-            maxpool_size = round(curr_size/150)
-            for i in range(1,11):
-                if maxpool_size - i > 0 and curr_size % (maxpool_size - i) == 0:
-                    maxpool_size = maxpool_size - i
-                    break 
-                if maxpool_size + i <= curr_size and curr_size % (maxpool_size + i) == 0:
-                    maxpool_size = maxpool_size + i 
-                    break
-        self.maxpool = nn.MaxPool2d([1,maxpool_size],stride=[1,maxpool_size],padding=0)
-        self.dropout = nn.Dropout(p=dropout)
-        self.fc = nn.Linear(in_features=(round(curr_size/maxpool_size)*out_channel_2_dim), out_features=num_classes, bias=False)
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.maxpool(x)
-        x = self.dropout(x)
-        x = x.view(x.size(0),-1)
-        x = self.fc(x)
+class Conv2dWithConstraint(nn.Conv2d):
+    def __init__(self, *args, max_norm: int = 1, **kwargs):
+        self.max_norm = max_norm
+        super(Conv2dWithConstraint, self).__init__(*args, **kwargs)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.weight.data = torch.renorm(self.weight.data, p=2, dim=0, maxnorm=self.max_norm)
+        return super(Conv2dWithConstraint, self).forward(x)
+
+
+class EEGNet(nn.Module):
+    r'''
+    Args:
+        chunk_size (int): Number of data points included in each EEG chunk, i.e., :math:`T` in the paper. (default: :obj:`151`)
+        num_electrodes (int): The number of electrodes, i.e., :math:`C` in the paper. (default: :obj:`60`)
+        F1 (int): The filter number of block 1, i.e., :math:`F_1` in the paper. (default: :obj:`8`)
+        F2 (int): The filter number of block 2, i.e., :math:`F_2` in the paper. (default: :obj:`16`)
+        D (int): The depth multiplier (number of spatial filters), i.e., :math:`D` in the paper. (default: :obj:`2`)
+        num_classes (int): The number of classes to predict, i.e., :math:`N` in the paper. (default: :obj:`2`)
+        kernel_1 (int): The filter size of block 1. (default: :obj:`64`)
+        kernel_2 (int): The filter size of block 2. (default: :obj:`64`)
+        dropout (float): Probability of an element to be zeroed in the dropout layers. (default: :obj:`0.25`)
+    '''
+    def __init__(self,
+                 chunk_size: int = 125,
+                 num_electrodes: int = 16,
+                 F1: int = 8,
+                 F2: int = 16,
+                 D: int = 2,
+                 num_classes: int = 2,
+                 kernel_1: int = 64,
+                 kernel_2: int = 16,
+                 dropout: float = 0.25):
+        super(EEGNet, self).__init__()
+        self.F1 = F1
+        self.F2 = F2
+        self.D = D
+        self.chunk_size = chunk_size
+        self.num_classes = num_classes
+        self.num_electrodes = num_electrodes
+        self.kernel_1 = kernel_1
+        self.kernel_2 = kernel_2
+        self.dropout = dropout
+
+        self.block1 = nn.Sequential(
+            nn.Conv2d(1, self.F1, (1, self.kernel_1), stride=1, padding=(0, self.kernel_1 // 2), bias=False),
+            nn.BatchNorm2d(self.F1, momentum=0.01, affine=True, eps=1e-3),
+            Conv2dWithConstraint(self.F1,
+                                 self.F1 * self.D, (self.num_electrodes, 1),
+                                 max_norm=1,
+                                 stride=1,
+                                 padding=(0, 0),
+                                 groups=self.F1,
+                                 bias=False), nn.BatchNorm2d(self.F1 * self.D, momentum=0.01, affine=True, eps=1e-3),
+            nn.ELU(), nn.AvgPool2d((1, 4), stride=4), nn.Dropout(p=dropout))
+
+        self.block2 = nn.Sequential(
+            nn.Conv2d(self.F1 * self.D,
+                      self.F1 * self.D, (1, self.kernel_2),
+                      stride=1,
+                      padding=(0, self.kernel_2 // 2),
+                      bias=False,
+                      groups=self.F1 * self.D),
+            nn.Conv2d(self.F1 * self.D, self.F2, 1, padding=(0, 0), groups=1, bias=False, stride=1),
+            nn.BatchNorm2d(self.F2, momentum=0.01, affine=True, eps=1e-3), nn.ELU(), nn.AvgPool2d((1, 8), stride=8),
+            nn.Dropout(p=dropout))
+
+        self.lin = nn.Linear(self.feature_dim(), num_classes, bias=False)
+
+    def feature_dim(self):
+        with torch.no_grad():
+            mock_eeg = torch.zeros(1, 1, self.num_electrodes, self.chunk_size)
+
+            mock_eeg = self.block1(mock_eeg)
+            mock_eeg = self.block2(mock_eeg)
+
+        return self.F2 * mock_eeg.shape[3]
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        r'''
+        Args:
+            x (torch.Tensor): EEG signal representation, the ideal input shape is :obj:`[n, num_channels, num_timesteps]`.
+
+        Returns:
+            torch.Tensor[number of sample, number of classes]: the predicted probability that the samples belong to the classes.
+        '''
+        x = self.block1(x)
+        x = self.block2(x)
+        x = x.flatten(start_dim=1)
+        x = self.lin(x)
+
         return x
-
-

@@ -3,5 +3,9 @@ scikit-learn
 numpy 
 datasets
 mne 
+tqdm
+optuna
+pytz
+collections
 mne-features
 scipy
