@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 import pytz
@@ -10,32 +10,47 @@ def find_closest_row(time, eeg_df, last_index):
 
     for i, row in eeg_df[last_index:].iterrows():
         unix_timestamp = row[30]
-        unix_dt = datetime.utcfromtimestamp(unix_timestamp)
-        unix_dt = unix_dt.replace(tzinfo=pytz.UTC)
+        unix_dt = datetime.fromtimestamp(unix_timestamp)
+        unix_dt = unix_dt.replace(tzinfo=timezone.utc)
+        time = time.replace(tzinfo=timezone.utc)
         difference = abs((unix_dt - time).total_seconds())
+        print(f"EEG timestamp: {unix_dt}")
+        print(f"Trial timestamp: {time}")
+        print(f"Difference in seconds: {difference}")
         if(difference > last_difference):
+            print(f"EEG timestamp: {unix_dt}")
+            print(f"Trial timestamp: {time}")
+            print(f"Difference in seconds: {difference}")
             return i - 1
         last_difference = difference
 
 ### Helper function that returns row indices in the EEG DataFrame that correspond to the appearance of a Stroop word according to metadata ###
 def read_file(eeg_file, metadata_file, onset_time = 0, after_time = 1.0, sr = 125):
-    metadata_df = pd.read_csv(metadata_file).iloc[1:].reset_index(drop=True)
+    metadata_df = pd.read_csv(metadata_file).reset_index(drop=True)
 
-    start_time = metadata_df.iloc[0]['expStart']
-    start_time = datetime.strptime(start_time, "%Y-%m-%d %Hh%M.%S.%f %z")
+    #start_time = metadata_df.iloc[0]['expStart']
+    #start_time = datetime.strptime(start_time, "%Y-%m-%d %Hh%M.%S.%f %z")
 
     eeg_df = pd.read_csv(eeg_file, sep = '\t', header=None)
 
     congruent_row_indices = []
     incongruent_row_indices = []
     last_index = 0
-    for index, row in metadata_df.iterrows():
-        time = start_time + timedelta(seconds=row['trial.started'])
-        row_index = find_closest_row(time, eeg_df, last_index)
-        last_index = row_index
+    start_time = datetime.strptime(metadata_df.iloc[0]['Timestamp'], "%Y-%m-%d_%H:%M:%S:%f")
+    start_row = find_closest_row(start_time,eeg_df,last_index)
+    last_row = start_row
+    iti = metadata_df.iloc[0]['ITI']
+    for index, row in metadata_df.iloc[1:].iterrows():
+        #time = start_time + timedelta(seconds=row['trial.started'])
+        #time = datetime.strptime(row['Timestamp'], "%Y-%m-%d_%H:%M:%S:%f")
+        #row_index = find_closest_row(time, eeg_df, last_index)
+        row_index = last_row + int((iti*sr))
+        last_row = row_index
+        iti = row['ITI']
+        #last_index = row_index
         if(row_index < (onset_time * sr) or row_index + (after_time * sr) >= len(eeg_df)):
             continue
-        if row['congruent'] == 1:
+        if str(row['Word']) == str(row['Color']):
             congruent_row_indices.append(row_index)
         else:
             incongruent_row_indices.append(row_index)

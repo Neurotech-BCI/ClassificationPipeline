@@ -55,10 +55,10 @@ print(f"Worst CV F1: {metrics_dict['worst_f1']}")
 * Use Example:
 ```
 from extract_erps import process_data
-eeg_file_paths = [r"data/eeg_fatigue_sample_1.csv", r"data/eeg_baseline_sample_1.csv"]
-metadata_file_path = [r"metadata/eeg_fatigue_sample_1.csv", r"metadata/eeg_baseline_sample_1.csv"]
+eeg_file_paths = [r"data/Sample1.csv"]
+metadata_file_path = [r"metadata/Sample1.csv"]
 output_dir_name = "outputs"
-process_data(eeg_file_paths,metadata_file_paths, output_dir_name=output_dir_name, onset_time = 0, after_time = 1.0, sr = 125)
+process_data(eeg_file_paths,metadata_file_path, output_dir_name=output_dir_name, onset_time = 0, after_time = 1.0, sr = 125)
 ```
 
 
