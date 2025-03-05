@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+from .bayesian_cnn import BBBConv2d
+from .bayesian_linear import BBBLinear
 
-
-class Conv2dWithConstraint(nn.Conv2d):
+class Conv2dWithConstraint(BBBConv2d):
     def __init__(self, *args, max_norm: int = 1, **kwargs):
         self.max_norm = max_norm
         super(Conv2dWithConstraint, self).__init__(*args, **kwargs)
@@ -47,7 +48,7 @@ class EEGNet(nn.Module):
         self.dropout = dropout
 
         self.block1 = nn.Sequential(
-            nn.Conv2d(1, self.F1, (1, self.kernel_1), stride=1, padding=(0, self.kernel_1 // 2), bias=False),
+            BBBConv2d(1, self.F1, (1, self.kernel_1), stride=1, padding=(0, self.kernel_1 // 2), bias=False),
             nn.BatchNorm2d(self.F1, momentum=0.01, affine=True, eps=1e-3),
             Conv2dWithConstraint(self.F1,
                                  self.F1 * self.D, (self.num_electrodes, 1),
@@ -59,17 +60,17 @@ class EEGNet(nn.Module):
             nn.ELU(), nn.AvgPool2d((1, 4), stride=4), nn.Dropout(p=dropout))
 
         self.block2 = nn.Sequential(
-            nn.Conv2d(self.F1 * self.D,
+            BBBConv2d(self.F1 * self.D,
                       self.F1 * self.D, (1, self.kernel_2),
                       stride=1,
                       padding=(0, self.kernel_2 // 2),
                       bias=False,
                       groups=self.F1 * self.D),
-            nn.Conv2d(self.F1 * self.D, self.F2, 1, padding=(0, 0), groups=1, bias=False, stride=1),
+            BBBConv2d(self.F1 * self.D, self.F2, 1, padding=(0, 0), groups=1, bias=False, stride=1),
             nn.BatchNorm2d(self.F2, momentum=0.01, affine=True, eps=1e-3), nn.ELU(), nn.AvgPool2d((1, 8), stride=8),
             nn.Dropout(p=dropout))
 
-        self.lin = nn.Linear(self.feature_dim(), num_classes, bias=False)
+        self.lin = BBBLinear(self.feature_dim(), num_classes, bias=False)
 
     def feature_dim(self):
         with torch.no_grad():
