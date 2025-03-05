@@ -17,12 +17,12 @@ def find_closest_row(time, eeg_df, last_index):
         print(f"EEG timestamp: {unix_dt}")
         print(f"Trial timestamp: {time}")
         print(f"Difference in seconds: {difference}")
-        if(difference > last_difference):
-            print(f"EEG timestamp: {unix_dt}")
-            print(f"Trial timestamp: {time}")
-            print(f"Difference in seconds: {difference}")
-            return i - 1
-        last_difference = difference
+        if(unix_dt > time):
+            print(f"Difference in seconds final: {last_difference}")
+            return i - 1, last_difference
+        
+        if abs(last_difference-difference) > 0.2:
+            last_difference = difference
 
 ### Helper function that returns row indices in the EEG DataFrame that correspond to the appearance of a Stroop word according to metadata ###
 def read_file(eeg_file, metadata_file, onset_time = 0, after_time = 1.0, sr = 125):
@@ -37,7 +37,8 @@ def read_file(eeg_file, metadata_file, onset_time = 0, after_time = 1.0, sr = 12
     incongruent_row_indices = []
     last_index = 0
     start_time = datetime.strptime(metadata_df.iloc[0]['Timestamp'], "%Y-%m-%d_%H:%M:%S:%f")
-    start_row = find_closest_row(start_time,eeg_df,last_index)
+    start_row, difference = find_closest_row(start_time,eeg_df,last_index)
+    start_row += int(difference*sr)
     last_row = start_row
     iti = metadata_df.iloc[0]['ITI']
     for index, row in metadata_df.iloc[1:].iterrows():
