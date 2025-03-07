@@ -22,8 +22,11 @@ def read_file(eeg_file):
     i = 1250
     while i < len(eeg_df.index):
         i = find_start_row(eeg_df, i)
-        flash_indices.append(i)
-        i += 100
+        if (i != None):
+            flash_indices.append(i)
+            i += 100
+        else:
+            i = eeg_df.index
 
     return eeg_df, flash_indices
 
