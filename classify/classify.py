@@ -4,6 +4,10 @@ import numpy as np
 import torch 
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+from bayesian_torch.models.dnn_to_bnn import get_kl_loss
+import torch.nn.functional as F
+
+
 
 ### Method to classify a dataset with cross validation and compute relevant metrics using an sklearn model ###
 def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuffle=True),groups=None, return_preds = False):
@@ -59,23 +63,27 @@ def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuff
         metrics_dict['predictions'] = outputs
     return metrics_dict
     
-def reset_weights(model):
-    for layer in model.children():
-        if hasattr(layer, 'reset_parameters'):
-            layer.reset_parameters()
 
 ### Method to classify a dataset with cross validation and compute relevant metrics using a pytorch model ###
-def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffle=True), groups=None, return_preds = False, batch_size = 10, learning_rate = 0.01, num_epochs = 10, criterion = nn.CrossEntropyLoss()):
+def classify_torch(X, y, model_class, args=(), kwargs = {}, bayesian = False, cv_splitter = StratifiedKFold(n_splits=5, shuffle=True), groups=None, return_preds = False, batch_size = 32, learning_rate = 0.01, num_epochs = 15, criterion = nn.CrossEntropyLoss()):
     predictions = []
     differences = []
     accuracies = []
     precisions = []
     recalls = []
     f1_scores = []
-    data_tensor = torch.tensor(np.expand_dims(X,axis=2),dtype=torch.float32)
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(f"Device: {device}")
+    data_tensor = torch.tensor(np.expand_dims(X,axis=1),dtype=torch.float32)
     labels_tensor = torch.tensor(y,dtype=torch.long)
     for train, test in cv_splitter.split(data_tensor,labels_tensor,groups=None):
-        reset_weights(model)
+        try:
+            model = model_class(*args,**kwargs)
+        except Exception as e:
+            print(e)
+            print("Invalid model initialization")
+            return -1
+        model.to(device)
         train_data, test_data = data_tensor[train], data_tensor[test]
         train_labels, test_labels = labels_tensor[train], labels_tensor[test]
         train_dataset = TensorDataset(train_data, train_labels)
@@ -87,27 +95,35 @@ def classify_torch(X, y, model, cv_splitter = StratifiedKFold(n_splits=5, shuffl
             model.train()
             running_loss = 0.0
             for inputs, targets in train_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
+                if bayesian:
+                    kl = get_kl_loss(model)
+                    loss = loss + kl / inputs.size(0)
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
             print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}")
         with torch.no_grad():
             curr_idx = 0
+            accuracies_temp = []
             for inputs, targets in test_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
                 outputs = model(inputs)
-                _, preds = torch.max(outputs, 1)
+                _, preds = torch.max(outputs, -1)
                 preds = preds.cpu().numpy()
                 targets = targets.cpu().numpy()
                 differences.extend([abs(pred-real) for pred, real in zip(preds,targets)])
                 accuracies.append(accuracy_score(targets,preds))
-                precisions.append(precision_score(targets,preds,average='weighted'))
-                recalls.append(recall_score(targets,preds,average='weighted'))
-                f1_scores.append(f1_score(targets,preds,average='weighted'))
+                accuracies_temp.append(accuracy_score(targets,preds))
+                precisions.append(precision_score(targets,preds,zero_division=0,average='weighted'))
+                recalls.append(recall_score(targets,preds,zero_division=0,average='weighted'))
+                f1_scores.append(f1_score(targets,preds,zero_division=0,average='weighted'))
                 predictions.extend([(pred,real,index) for pred, real, index in zip(preds,targets,test[curr_idx:curr_idx+len(targets)])])
                 curr_idx = len(targets)
+            print(f"Mean accuracy for current fold: {np.mean(accuracies_temp)}")
     predictions = sorted(predictions, key=lambda x: x[2])
     predictions = [(pred,real) for pred, real, _ in predictions]
     mean_cv_accuracy = np.mean(accuracies)

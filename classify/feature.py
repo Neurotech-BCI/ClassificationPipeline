@@ -2,7 +2,7 @@ import numpy as np
 from mne_features.univariate import compute_samp_entropy, compute_spect_entropy, compute_hjorth_complexity, compute_hjorth_mobility, compute_kurtosis, compute_skewness
 from scipy.signal import welch
 from collections import defaultdict
-from graph_features import node_strength, local_efficiency, clustering_coefficient, betweenness_centrality
+from .graph_features import calculate_node_strength, local_efficiency, clustering_coefficient, betweenness_centrality
 
 ### Wrapper for extracting temporal features from raw EEG samples in shape (num_channels,time_steps) and returning outputs in shape (num_channels, num_features) ###
 class FeatureWrapper():
@@ -16,10 +16,10 @@ class FeatureWrapper():
             'hjorth_activity': self.compute_hjorth_activity,
             'hjorth_mobility': self.compute_hjorth_mobility,
             'hjorth_complexity': self.compute_hjorth_complexity,
-            'node_strength': self.compute_node_strength,
-            'local_efficiency': self.compute_local_efficiency,
-            'clustering_coefficient': self.compute_clustering_coefficient,
-            'betweenness_centrality': self.compute_betweenness_centrality
+            #'node_strength': self.compute_node_strength,
+            #'local_efficiency': self.compute_local_efficiency,
+            #'clustering_coefficient': self.compute_clustering_coefficient,
+            #'betweenness_centrality': self.compute_betweenness_centrality
             #'kurtosis': self.compute_kurtosis,
             #'skewness': self.compute_skewness
         }
@@ -84,19 +84,19 @@ class FeatureWrapper():
         sample_entropy = compute_samp_entropy(data)
         return sample_entropy
     
-    def compute_node_strength(self, data): #returns shape(num_imfs, num channels)
-        ns = node_strength(data)
+    def compute_node_strength(self, data, fs): #returns shape(num_imfs, num channels)
+        ns = calculate_node_strength(data)
         return ns
     
-    def compute_local_efficiency(self, data): #returns shape(num_imfs, num channels)
+    def compute_local_efficiency(self, data, fs): #returns shape(num_imfs, num channels)
         le = local_efficiency(data)
         return le
     
-    def compute_clustering_coefficient(self, data): #returns shape(num_imfs, num channels)
+    def compute_clustering_coefficient(self, data, fs): #returns shape(num_imfs, num channels)
         cc = clustering_coefficient(data)
         return cc
     
-    def compute_betweenness_centrality(self, data): #returns shape(num_imfs, num channels)
+    def compute_betweenness_centrality(self, data, fs): #returns shape(num_imfs, num channels)
         bc = betweenness_centrality(data)
         return bc
 
