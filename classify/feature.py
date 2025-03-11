@@ -45,7 +45,7 @@ class FeatureWrapper():
         return complexity
     def compute_alpha_bandpower(self, data, fs):  
         band=(8, 13)
-        n_channels, _ = data.shape
+        n_channels = data.shape[0]
         band_power = np.zeros(n_channels)
     
         for i in range(n_channels):
@@ -56,7 +56,7 @@ class FeatureWrapper():
         return band_power
     def compute_beta_bandpower(self, data, fs):  
         band=(12, 30)
-        n_channels, _ = data.shape
+        n_channels = data.shape[0]
         band_power = np.zeros(n_channels)
     
         for i in range(n_channels):
@@ -67,7 +67,7 @@ class FeatureWrapper():
         return band_power
     def compute_theta_bandpower(self, data, fs):  
         band=(3.5, 7.5)
-        n_channels, _ = data.shape
+        n_channels = data.shape[0]
         band_power = np.zeros(n_channels)
     
         for i in range(n_channels):
