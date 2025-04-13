@@ -18,7 +18,7 @@ conda create -n "env_name"
 ```
 pip install -r requirements.txt
 ```
-* Start server at localhost http://127.0.1:8000"
+* Start server at localhost http://127.0.1:8000
 ```
 uvicorn inference_api:app --reload
 ```
