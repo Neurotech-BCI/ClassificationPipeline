@@ -1,11 +1,13 @@
 # Documentation 
 ## Repo Map
+* inference_api.py: Model inference API that loads the trained model specified in .env on startup and responds to post requests passing string-formatted csvs of EEG data and returns the model's prediction.
+* test_inference.py: Test script that sends a request to the endpoint in inference_api using an example data csv.
+* train.py: Script to train the model on 2-class or 3-class classification and save to /models.
 * classify.py: Main classifier functions with entrypoints for sklearn or pytorch classifier with automated cross-validation evaluation. Expects inputs and labels X, y in shape (num_samples, num_channels, num_features) and (num_samples,). Labels should be encoded with values 0 to n-1 where n is the number of unique classes. Also expects a constructed sklearn or pytorch classifier. Returns dictionary of evaluation results.
 * feature.py: Feature extraction wrapper class for computing desired features. in FeatureWrapper.compute_features(), expects an EEG sample in the shape (num_channels, num_timesteps), the sampling frequency, and desired features specified with a list of keys to the feature function dictionary. Returns 2D numpy array for the given sample in shape (num_channels, num_features).
-* hyperparameter.py: Hyperparameter optimization framework using Bayesian Optimization to find optimal channel and feature subset to maximize crossfold accuracy on EEG training dataset.
-* eegnet.py: Implementation of a lightweight CNN for EEG classification. If not specified in constructor, kernel parameters are calculated depending on input length. This model works as input for the pytorch classifier. Works best on raw signal without feature extractions, so pass inputs to classification function as (num_samples, num_channels, num_timesteps).
-* example_script.ipynb: Example notebook walking through steps for loading an example toy dataset with binary labels for relaxation or concentration, formatting it for the feature extraction and classifier, and getting cross fold evaluation results.
-* extract_erps: Directory storing module for extracting ERPs from filepaths.
+* eegnet.py: Implementation of a bayesian CNN for EEG classification. If not specified in constructor, kernel parameters are calculated depending on input length. This model works as input for the pytorch classifier. Works best on raw signal without feature extractions, so pass inputs to classification function as (num_samples, num_channels, num_timesteps).
+* example_script.ipynb: Example notebook walking through data loading and evaluation of ML classifiers in different conditions.
+* preprocess.ipynb: Preprocessing workflow to prepare training data from raw csv uploads.
 
 ## Getting Started 
 * Create new conda environment: 
@@ -16,10 +18,18 @@ conda create -n "env_name"
 ```
 pip install -r requirements.txt
 ```
-* Use example:
+* Start server at localhost http://127.0.1:8000"
+```
+uvicorn inference_api:app --reload
+```
+* Test inference at the /inference endpoint:
+```
+python test_inference.py
+```
+## Using the Classify Module:
 ```
 import numpy as np 
-from sklearn.svm import SVC
+from sklearn.ensemble import AdaBoostClassifier
 from classify import classify_sklearn, FeatureWrapper
 
 num_samples = 10
@@ -51,15 +61,6 @@ print(f"Best CV F1: {metrics_dict['best_f1']}")
 print(f"Worst CV F1: {metrics_dict['worst_f1']}")
 ```
 
-## Extracting ERPs
-* Use Example:
-```
-from extract_erps import process_data
-eeg_file_paths = [r"data/Sample1.csv"]
-metadata_file_path = [r"metadata/Sample1.csv"]
-output_dir_name = "outputs"
-process_data(eeg_file_paths,metadata_file_path, output_dir_name=output_dir_name, onset_time = 0, after_time = 1.0, sr = 125)
-```
 
 
 

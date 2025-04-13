@@ -6,11 +6,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from bayesian_torch.models.dnn_to_bnn import get_kl_loss
 import torch.nn.functional as F
+from sklearn.preprocessing import MinMaxScaler
 
 
 
 ### Method to classify a dataset with cross validation and compute relevant metrics using an sklearn model ###
-def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuffle=True),groups=None, return_preds = False):
+def classify_sklearn(X, y, model, normalize=True, cv_splitter = StratifiedKFold(n_splits=5,shuffle=True),groups=None, return_preds = False):
     outputs = []
     differences = []
     accuracies = []
@@ -19,13 +20,20 @@ def classify_sklearn(X, y, model, cv_splitter = StratifiedKFold(n_splits=5,shuff
     f1_scores = []
     X_reshaped = np.reshape(X,(X.shape[0],-1))
     for train, test in cv_splitter.split(X_reshaped,y,groups=groups):
-        model.fit(X_reshaped[train],y[train])
-        y_pred = model.predict(X_reshaped[test])
+        train_data = X_reshaped[train]
+        test_data = X_reshaped[test]
+        if normalize:
+            scaler = MinMaxScaler(feature_range=(-1, 1))
+            scaler.fit(train_data)
+            train_data = scaler.transform(train_data)
+            test_data = scaler.transform(test_data)
+        model.fit(train_data,y[train])
+        y_pred = model.predict(test_data)
         differences.extend([abs(pred-real) for pred, real in zip(y_pred,y[test])])
         accuracies.append(accuracy_score(y[test],y_pred))
-        precisions.append(precision_score(y[test],y_pred,average='weighted'))
-        recalls.append(recall_score(y[test],y_pred,average='weighted'))
-        f1_scores.append(f1_score(y[test],y_pred,average='weighted'))
+        precisions.append(precision_score(y[test],y_pred,average='weighted',zero_division=0))
+        recalls.append(recall_score(y[test],y_pred,average='weighted',zero_division=0))
+        f1_scores.append(f1_score(y[test],y_pred,average='weighted',zero_division=0))
         outputs.extend([(pred,real,index) for pred, real, index in zip(y_pred,y[test],test)])
     outputs = sorted(outputs, key=lambda x: x[2])
     outputs = [(pred,real) for pred, real, _ in outputs]
@@ -76,7 +84,7 @@ def classify_torch(X, y, model_class, args=(), kwargs = {}, bayesian = False, cv
     print(f"Device: {device}")
     data_tensor = torch.tensor(np.expand_dims(X,axis=1),dtype=torch.float32)
     labels_tensor = torch.tensor(y,dtype=torch.long)
-    for train, test in cv_splitter.split(data_tensor,labels_tensor,groups=None):
+    for train, test in cv_splitter.split(data_tensor,labels_tensor,groups=groups):
         try:
             model = model_class(*args,**kwargs)
         except Exception as e:
@@ -85,6 +93,16 @@ def classify_torch(X, y, model_class, args=(), kwargs = {}, bayesian = False, cv
             return -1
         model.to(device)
         train_data, test_data = data_tensor[train], data_tensor[test]
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+        train_size = train_data.size()
+        test_size = test_data.size()
+        train_data = train_data.view(train_data.size(0),-1).cpu().numpy()
+        test_data = test_data.view(test_data.size(0),-1).cpu().numpy()
+        scaler.fit(train_data)
+        train_data = scaler.transform(train_data)
+        test_data = scaler.transform(test_data)
+        train_data = torch.tensor(train_data,dtype=torch.float32).view(train_size)
+        test_data = torch.tensor(test_data,dtype=torch.float32).view(test_size)
         train_labels, test_labels = labels_tensor[train], labels_tensor[test]
         train_dataset = TensorDataset(train_data, train_labels)
         test_dataset = TensorDataset(test_data, test_labels)

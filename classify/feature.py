@@ -2,13 +2,14 @@ import numpy as np
 from mne_features.univariate import compute_samp_entropy, compute_spect_entropy, compute_hjorth_complexity, compute_hjorth_mobility, compute_kurtosis, compute_skewness
 from scipy.signal import welch
 from collections import defaultdict
-from .graph_features import calculate_node_strength, local_efficiency, clustering_coefficient, betweenness_centrality
-
+from .graph_features import node_strength, betweenness_centrality
+import itertools
+from EntropyHub import PermEn, FuzzEn
 ### Wrapper for extracting temporal features from raw EEG samples in shape (num_channels,time_steps) and returning outputs in shape (num_channels, num_features) ###
 class FeatureWrapper():
     def __init__(self):
         self.func_dict = {
-            #'spectral_entropy': self.compute_spectral_entropy,
+            'spectral_entropy': self.compute_spectral_entropy,
             'sample_entropy': self.compute_sample_entropy,
             'alpha_bandpower': self.compute_alpha_bandpower,
             'beta_bandpower': self.compute_beta_bandpower,
@@ -17,8 +18,8 @@ class FeatureWrapper():
             'hjorth_mobility': self.compute_hjorth_mobility,
             'hjorth_complexity': self.compute_hjorth_complexity,
             #'node_strength': self.compute_node_strength,
-            #'local_efficiency': self.compute_local_efficiency,
-            #'clustering_coefficient': self.compute_clustering_coefficient,
+            #'fuzzy_entropy': self.compute_fuzzy_entropy,
+            'permutation_entropy': self.compute_permutation_entropy,
             #'betweenness_centrality': self.compute_betweenness_centrality
             #'kurtosis': self.compute_kurtosis,
             #'skewness': self.compute_skewness
@@ -55,7 +56,7 @@ class FeatureWrapper():
     
         return band_power
     def compute_beta_bandpower(self, data, fs):  
-        band=(12, 30)
+        band=(13, 30)
         n_channels = data.shape[0]
         band_power = np.zeros(n_channels)
     
@@ -83,18 +84,31 @@ class FeatureWrapper():
     def compute_sample_entropy(self,data,sfreq):
         sample_entropy = compute_samp_entropy(data)
         return sample_entropy
-    
+
+    def compute_permutation_entropy(self,data,sfreq):
+        m = 2
+        tau = 1
+        n_channels = data.shape[0]
+        pe = np.zeros(n_channels)
+        for ch in range(n_channels):
+            signal = data[ch]
+            pe[ch] = PermEn(signal, m=m, tau=tau)[0][-1]
+        return pe
+
+    def compute_fuzzy_entropy(self,data, sfreq):
+        m = 2 
+        r = (0.2,2)
+        tau = 1
+        n_channels = data.shape[0]
+        fe = np.zeros(n_channels)
+        for ch in range(n_channels):
+            signal = data[ch]
+            fe[ch] = FuzzEn(signal, m=m, r=r, tau=tau)[0][-1]
+        return fe
+
     def compute_node_strength(self, data, fs): #returns shape(num_imfs, num channels)
-        ns = calculate_node_strength(data)
+        ns = node_strength(data)
         return ns
-    
-    def compute_local_efficiency(self, data, fs): #returns shape(num_imfs, num channels)
-        le = local_efficiency(data)
-        return le
-    
-    def compute_clustering_coefficient(self, data, fs): #returns shape(num_imfs, num channels)
-        cc = clustering_coefficient(data)
-        return cc
     
     def compute_betweenness_centrality(self, data, fs): #returns shape(num_imfs, num channels)
         bc = betweenness_centrality(data)
