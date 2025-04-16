@@ -2,7 +2,7 @@ import numpy as np
 from mne_features.univariate import compute_samp_entropy, compute_spect_entropy, compute_hjorth_complexity, compute_hjorth_mobility, compute_kurtosis, compute_skewness
 from scipy.signal import welch
 from collections import defaultdict
-from .graph_features import node_strength, betweenness_centrality
+from .graph_features import node_strengths_coherence, betweenness_centrality_pli, clustering_coefficient_plv, clustering_coefficient_pli
 import itertools
 from EntropyHub import PermEn, FuzzEn
 ### Wrapper for extracting temporal features from raw EEG samples in shape (num_channels,time_steps) and returning outputs in shape (num_channels, num_features) ###
@@ -106,13 +106,17 @@ class FeatureWrapper():
             fe[ch] = FuzzEn(signal, m=m, r=r, tau=tau)[0][-1]
         return fe
 
-    def compute_node_strength(self, data, fs): #returns shape(num_imfs, num channels)
-        ns = node_strength(data)
-        return ns
+    def node_strength_coh(self, data, band): #input band as a string ie "alpha"
+        return node_strengths_coherence(data, band)
     
-    def compute_betweenness_centrality(self, data, fs): #returns shape(num_imfs, num channels)
-        bc = betweenness_centrality(data)
-        return bc
+    def betweenness_pli(self, data, band):
+        return betweenness_centrality_pli(data, band)
+    
+    def clustering_pli(self, data, band):
+        return clustering_coefficient_pli(data, band)
+    
+    def clustering_plv(self, data, band): 
+        return clustering_coefficient_plv(data, band)
 
 
 
