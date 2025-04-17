@@ -43,7 +43,6 @@ def coherence(signal, FS):
     FS: sampling rate
     Returns: (channels x channels) phase coherence matrix over full band
     """
-    signal = np.mean(signal, axis = 0)
     n_channels, n_samples = signal.shape
 
     # FFT and normalize by magnitude
@@ -66,13 +65,12 @@ def coherence(signal, FS):
 
     return pc_matrix
 
-def phase_lag_index(data, FS = 256):
-    data = np.mean(data, axis = 0)
+def phase_lag_index(data, FS = 125):
     n_channels, n_samples = data.shape
     pli_matrix = np.zeros((n_channels, n_channels))
 
     # Get analytic signal via Hilbert transform
-    analytic_signal = hilbert(data, axis=1)
+    analytic_signal = signal.hilbert(data, axis=1)
     phase_data = np.angle(analytic_signal)
 
     for i in range(n_channels):
@@ -85,13 +83,11 @@ def phase_lag_index(data, FS = 256):
 
 
 def phase_locking_value(data):
-
-    data = np.mean(data, axis = 0)
     n_channels, n_times = data.shape
     plv_matrix = np.zeros((n_channels, n_channels))
 
     # Apply Hilbert transform to get analytic signal (complex-valued)
-    analytic_signal = hilbert(data, axis=1)
+    analytic_signal = signal.hilbert(data, axis=1)
     phases = np.angle(analytic_signal)
 
     for i in range(n_channels):
@@ -115,20 +111,18 @@ def matrix_to_graph(matrix):
     return G
 
 
-def node_strengths_coherence(eeg_data, band, FS = 256): #node strength - coherence
+def node_strengths_coherence(data, FS = 125): #node strength - coherence
     """
-    eeg_data: (trials, channels, timesteps)
+    eeg_data: (channels, timesteps)
     FS: sampling rate
     Returns: node strengths per channel (summed connectivity)
     """  
-    data = bandpass_filter(eeg_data, band)
     pc_matrix = coherence(data, FS)
     np.fill_diagonal(pc_matrix, 0)
     return np.sum(pc_matrix, axis=1)
 
 
-def betweenness_centrality_pli(eeg_data, band, FS = 256): #betweenness centrality - phase lag
-    data = bandpass_filter(eeg_data, band)
+def betweenness_centrality_pli(data, FS = 125): #betweenness centrality - phase lag
     matrix = phase_lag_index(data)
     G = matrix_to_graph(matrix)
     centrality_dict = nx.betweenness_centrality(G, weight='weight')
@@ -136,16 +130,14 @@ def betweenness_centrality_pli(eeg_data, band, FS = 256): #betweenness centralit
     return centrality_array
 
 
-def clustering_coefficient_pli(eeg_data, band, FS = 256):
-    data = bandpass_filter(eeg_data, band)
+def clustering_coefficient_pli(data, FS = 125):
     matrix = phase_lag_index(data)
     G = matrix_to_graph(matrix)
     clustering_dict = nx.clustering(G, weight='weight')
     clustering_array = np.array([clustering_dict[node] for node in sorted(clustering_dict)])
     return clustering_array
 
-def clustering_coefficient_plv(eeg_data, band, FS = 256):
-    data = bandpass_filter(eeg_data, band)
+def clustering_coefficient_plv(data, FS = 125):
     matrix = phase_locking_value(data)
     G = matrix_to_graph(matrix)
     clustering_dict = nx.clustering(G, weight='weight')

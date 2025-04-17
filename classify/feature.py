@@ -14,15 +14,18 @@ class FeatureWrapper():
             'alpha_bandpower': self.compute_alpha_bandpower,
             'beta_bandpower': self.compute_beta_bandpower,
             'theta_bandpower': self.compute_theta_bandpower,
+            'delta_bandpower': self.compute_delta_bandpower,
             'hjorth_activity': self.compute_hjorth_activity,
             'hjorth_mobility': self.compute_hjorth_mobility,
             'hjorth_complexity': self.compute_hjorth_complexity,
-            #'node_strength': self.compute_node_strength,
-            #'fuzzy_entropy': self.compute_fuzzy_entropy,
+            'node_strength': self.node_strength_coh,
+            'fuzzy_entropy': self.compute_fuzzy_entropy,
             'permutation_entropy': self.compute_permutation_entropy,
-            #'betweenness_centrality': self.compute_betweenness_centrality
-            #'kurtosis': self.compute_kurtosis,
-            #'skewness': self.compute_skewness
+            'betweenness_centrality': self.betweenness_pli,
+            'clustering_pli': self.clustering_pli,
+            'clustering_plv': self.clustering_plv,
+            'kurtosis': self.compute_kurtosis,
+            'skewness': self.compute_skewness
         }
         self.cache = []
     def compute_skewness(self,data,fs):
@@ -35,17 +38,24 @@ class FeatureWrapper():
         activity = np.var(data, axis=1)
         return activity
     def compute_hjorth_mobility(self,data,fs):
-        #activity = self.compute_hjorth_activity(data,fs)
-        #mobility = np.sqrt(np.var(np.diff(data, axis=1), axis=1) / activity)
         mobility = compute_hjorth_mobility(data)
         return mobility
     def compute_hjorth_complexity(self,data,fs):
-        #mobility = self.compute_hjorth_mobility(data,fs)
-        #complexity = np.sqrt(np.var(np.diff(np.diff(data, axis=1), axis=1), axis=1) / np.var(np.diff(data, axis=1), axis=1)) / mobility
         complexity = compute_hjorth_complexity(data)
         return complexity
     def compute_alpha_bandpower(self, data, fs):  
         band=(8, 13)
+        n_channels = data.shape[0]
+        band_power = np.zeros(n_channels)
+    
+        for i in range(n_channels):
+            freqs, psd = welch(data[i], fs=fs, nperseg=fs) 
+            band_idx = np.logical_and(freqs >= band[0], freqs <= band[1])
+            band_power[i] = np.sum(psd[band_idx])
+    
+        return band_power
+    def compute_delta_bandpower(self, data, fs):  
+        band=(0.5, 4)
         n_channels = data.shape[0]
         band_power = np.zeros(n_channels)
     
@@ -67,7 +77,7 @@ class FeatureWrapper():
     
         return band_power
     def compute_theta_bandpower(self, data, fs):  
-        band=(3.5, 7.5)
+        band=(4, 8)
         n_channels = data.shape[0]
         band_power = np.zeros(n_channels)
     
@@ -106,17 +116,17 @@ class FeatureWrapper():
             fe[ch] = FuzzEn(signal, m=m, r=r, tau=tau)[0][-1]
         return fe
 
-    def node_strength_coh(self, data, band): #input band as a string ie "alpha"
-        return node_strengths_coherence(data, band)
+    def node_strength_coh(self, data, fs): #input band as a string ie "alpha"
+        return node_strengths_coherence(data)
     
-    def betweenness_pli(self, data, band):
-        return betweenness_centrality_pli(data, band)
+    def betweenness_pli(self, data, fs):
+        return betweenness_centrality_pli(data)
     
-    def clustering_pli(self, data, band):
-        return clustering_coefficient_pli(data, band)
+    def clustering_pli(self, data, fs):
+        return clustering_coefficient_pli(data)
     
-    def clustering_plv(self, data, band): 
-        return clustering_coefficient_plv(data, band)
+    def clustering_plv(self, data, fs): 
+        return clustering_coefficient_plv(data)
 
 
 
@@ -125,21 +135,15 @@ class FeatureWrapper():
     
     def compute_features(self,data,data_idx,sfreq,channel_indices,desired_features = ["alpha_bandpower"]):
         if len(self.cache) <= data_idx:
-            self.cache.append(defaultdict(dict))
-        features = [[] for _ in range(len(channel_indices))]
-        for i, channel in enumerate(channel_indices):
-            for feature in desired_features:
-                #print((np.expand_dims(data[channel],axis=0)).shape)
-                if feature in self.cache[data_idx][channel]:
-                    #print(f"{feature} is cached for channel {channel}.")
-                    features[i].append(self.cache[data_idx][channel][feature])
-                else:
-                    #print(f"Calculating {feature} for channel {channel}.")
-                    datum = np.expand_dims(data[channel],axis=0)
-                    calculated_feature = (self.func_dict[feature](datum,sfreq)).item()
-                    #print(calculated_feature)
-                    features[i].append(calculated_feature)
-                    self.cache[data_idx][channel][feature] = calculated_feature
-        features = np.array(features)
-        #print(f"Features shape: {features.shape}")
+            self.cache.append({})
+        features = []
+        
+        for feature in desired_features:
+            if feature in self.cache[data_idx]:
+                features.append(self.cache[data_idx][feature])
+            else:
+                calculated_feature = (self.func_dict[feature](data,sfreq))
+                features.append(calculated_feature)
+                self.cache[data_idx][feature] = calculated_feature
+        features = np.stack(features,axis=1)
         return features
